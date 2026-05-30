@@ -1,0 +1,66 @@
+%% Mermaid ER diagram for Itinera schema
+
+erDiagram
+    users {
+        uuid id PK
+        text email
+        text full_name
+        text password_hash
+        text avatar_url
+        text preferred_timezone
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    trips {
+        uuid id PK
+        uuid user_id FK
+        text name
+        text destination
+        date start_date
+        date end_date
+        text description
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    activity_types {
+        int id PK
+        text slug
+        text label
+    }
+    email_messages {
+        uuid id PK
+        uuid user_id FK
+        uuid trip_id FK
+        text sender_email
+        text recipient_email
+        text subject
+        timestamptz received_at
+        boolean parsed
+        timestamptz parsed_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    itinerary_items {
+        uuid id PK
+        uuid trip_id FK
+        int activity_type_id FK
+        uuid source_email_id FK
+        text title
+        text description
+        text location
+        timestamptz start_timestamp
+        timestamptz end_timestamp
+        int ordinal
+        text status
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    users ||--o{ trips : owns
+    users ||--o{ email_messages : owns
+    trips ||--o{ itinerary_items : contains
+    trips ||--o{ email_messages : related_to
+    activity_types ||--o{ itinerary_items : categorizes
+    email_messages ||--o{ itinerary_items : source_for
