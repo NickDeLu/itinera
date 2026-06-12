@@ -79,3 +79,112 @@ CREATE TABLE itinerary_items (
 
 CREATE INDEX idx_itinerary_items_trip_id ON itinerary_items(trip_id);
 CREATE INDEX idx_itinerary_items_start_timestamp ON itinerary_items(start_timestamp);
+
+-- Enable Row Level Security (RLS) on all tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itinerary_items ENABLE ROW LEVEL SECURITY;
+
+-- USERS table policies
+-- Allow users to read only their own user record
+CREATE POLICY "Users can read their own profile" ON users
+  FOR SELECT
+  USING (auth.uid() = id);
+
+-- Allow authenticated users to insert a new user record (signup)
+CREATE POLICY "Users can create their own profile" ON users
+  FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- Allow users to update only their own user record
+CREATE POLICY "Users can update their own profile" ON users
+  FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- TRIPS table policies
+-- Allow users to select only their own trips
+CREATE POLICY "Users can read their own trips" ON trips
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Allow users to insert trips they own
+CREATE POLICY "Users can create trips" ON trips
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Allow users to update only their own trips
+CREATE POLICY "Users can update their own trips" ON trips
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Allow users to delete only their own trips
+CREATE POLICY "Users can delete their own trips" ON trips
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- EMAIL_MESSAGES table policies
+-- Allow users to read only email messages associated with their trips
+CREATE POLICY "Users can read their email messages" ON email_messages
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Allow users to insert email messages
+CREATE POLICY "Users can create email messages" ON email_messages
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Allow users to update only their own email messages
+CREATE POLICY "Users can update their email messages" ON email_messages
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Allow users to delete only their own email messages
+CREATE POLICY "Users can delete their email messages" ON email_messages
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- ITINERARY_ITEMS table policies
+-- Allow users to read itinerary items from their own trips
+CREATE POLICY "Users can read itinerary items from their trips" ON itinerary_items
+  FOR SELECT
+  USING (
+    trip_id IN (
+      SELECT id FROM trips WHERE trips.user_id = auth.uid()
+    )
+  );
+
+-- Allow users to insert itinerary items into their own trips
+CREATE POLICY "Users can create itinerary items in their trips" ON itinerary_items
+  FOR INSERT
+  WITH CHECK (
+    trip_id IN (
+      SELECT id FROM trips WHERE trips.user_id = auth.uid()
+    )
+  );
+
+-- Allow users to update itinerary items in their own trips
+CREATE POLICY "Users can update itinerary items in their trips" ON itinerary_items
+  FOR UPDATE
+  USING (
+    trip_id IN (
+      SELECT id FROM trips WHERE trips.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    trip_id IN (
+      SELECT id FROM trips WHERE trips.user_id = auth.uid()
+    )
+  );
+
+-- Allow users to delete itinerary items from their own trips
+CREATE POLICY "Users can delete itinerary items from their trips" ON itinerary_items
+  FOR DELETE
+  USING (
+    trip_id IN (
+      SELECT id FROM trips WHERE trips.user_id = auth.uid()
+    )
+  );

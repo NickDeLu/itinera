@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Itinera Auth Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+
+      .header p {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 30px;
+        border-bottom: 2px solid #f0f0f0;
+      }
+
+      .tab-btn {
+        background: none;
+        border: none;
+        padding: 12px 20px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #999;
+        border-bottom: 3px solid transparent;
+        transition: all 0.3s;
+      }
+
+      .tab-btn.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+        display: none;
+      }
+
+      .form-group.active {
+        display: block;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        margin-top: 10px;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .response {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 6px;
+        border-left: 4px solid #667eea;
+        font-size: 13px;
+        font-family: "Monaco", monospace;
+        max-height: 300px;
+        overflow-y: auto;
+        display: none;
+      }
+
+      .response.show {
+        display: block;
+      }
+
+      .response.error {
+        border-left-color: #e74c3c;
+        background: #fee;
+      }
+
+      .response.success {
+        border-left-color: #27ae60;
+        background: #efe;
+      }
+
+      .token-display {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f0f0f0;
+        border-radius: 6px;
+        font-size: 12px;
+        word-break: break-all;
+      }
+
+      .token-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 5px;
+      }
+
+      .token-value {
+        font-family: "Monaco", monospace;
+        color: #666;
+        word-break: break-all;
+      }
+
+      .loading {
+        text-align: center;
+        color: #999;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🧳 Itinera Auth</h1>
+        <p>Test authentication endpoints</p>
+      </div>
+
+      <div class="content">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('signup')">Sign Up</button>
+          <button class="tab-btn" onclick="switchTab('login')">Login</button>
+          <button class="tab-btn" onclick="switchTab('me')">Get User</button>
+          <button class="tab-btn" onclick="switchTab('refresh')">Refresh Token</button>
+        </div>
+
+        <!-- Sign Up Form -->
+        <div id="signup" class="form-group active">
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" placeholder="user@example.com" />
+
+          <label for="signup-password" style="margin-top: 15px">Password</label>
+          <input type="password" id="signup-password" placeholder="At least 6 characters" />
+
+          <label for="signup-name" style="margin-top: 15px">Full Name (Optional)</label>
+          <input type="text" id="signup-name" placeholder="John Doe" />
+
+          <button onclick="handleSignup()">Create Account</button>
+
+          <div id="signup-response" class="response"></div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login" class="form-group">
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" placeholder="user@example.com" />
+
+          <label for="login-password" style="margin-top: 15px">Password</label>
+          <input type="password" id="login-password" placeholder="Your password" />
+
+          <button onclick="handleLogin()">Sign In</button>
+
+          <div id="login-response" class="response"></div>
+        </div>
+
+        <!-- Get User Form -->
+        <div id="me" class="form-group">
+          <label for="me-token">Access Token</label>
+          <input type="password" id="me-token" placeholder="Paste your access token here" />
+
+          <button onclick="handleGetUser()">Get Current User</button>
+
+          <div id="me-response" class="response"></div>
+        </div>
+
+        <!-- Refresh Token Form -->
+        <div id="refresh" class="form-group">
+          <label for="refresh-token">Refresh Token</label>
+          <input type="password" id="refresh-token" placeholder="Paste your refresh token here" />
+
+          <button onclick="handleRefresh()">Refresh Access Token</button>
+
+          <div id="refresh-response" class="response"></div>
+        </div>
+
+        <div id="stored-tokens" class="token-display" style="display: none">
+          <div class="token-label">📌 Stored Tokens (from last response)</div>
+          <div style="margin-top: 10px">
+            <div class="token-label">Access Token:</div>
+            <div id="stored-access-token" class="token-value" style="margin-bottom: 15px">None</div>
+            <div class="token-label">Refresh Token:</div>
+            <div id="stored-refresh-token" class="token-value">None</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let storedAccessToken = null;
+      let storedRefreshToken = null;
+
+      function switchTab(tab) {
+        // Hide all forms
+        document.querySelectorAll(".form-group").forEach((el) => {
+          el.classList.remove("active");
+        });
+
+        // Deactivate all tabs
+        document.querySelectorAll(".tab-btn").forEach((el) => {
+          el.classList.remove("active");
+        });
+
+        // Show selected form and activate tab
+        document.getElementById(tab).classList.add("active");
+        event.target.classList.add("active");
+      }
+
+      function showResponse(elementId, data, isError = false) {
+        const responseEl = document.getElementById(elementId);
+        responseEl.textContent = JSON.stringify(data, null, 2);
+        responseEl.classList.remove("error", "success");
+        responseEl.classList.add(isError ? "error" : "success", "show");
+      }
+
+      function updateStoredTokens() {
+        if (storedAccessToken || storedRefreshToken) {
+          document.getElementById("stored-tokens").style.display = "block";
+          document.getElementById("stored-access-token").textContent =
+            storedAccessToken || "None";
+          document.getElementById("stored-refresh-token").textContent =
+            storedRefreshToken || "None";
+        }
+      }
+
+      async function handleSignup() {
+        const email = document.getElementById("signup-email").value;
+        const password = document.getElementById("signup-password").value;
+        const full_name = document.getElementById("signup-name").value;
+
+        if (!email || !password) {
+          showResponse("signup-response", { error: "Email and password are required" }, true);
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, full_name: full_name || undefined }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            showResponse("signup-response", data, true);
+          } else {
+            // Some servers return a session on signup; others require separate login.
+            // Server does not return a session on signup; show success message
+            showResponse("signup-response", { message: "User created successfully. Please log in to get access token.", server: data }, false);
+
+            // Clear form
+            document.getElementById("signup-email").value = "";
+            document.getElementById("signup-password").value = "";
+            document.getElementById("signup-name").value = "";
+          }
+        } catch (err) {
+          showResponse("signup-response", { error: err.message }, true);
+        }
+      }
+
+      async function handleLogin() {
+        const email = document.getElementById("login-email").value;
+        const password = document.getElementById("login-password").value;
+
+        if (!email || !password) {
+          showResponse("login-response", { error: "Email and password are required" }, true);
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            showResponse("login-response", data, true);
+          } else {
+            storedAccessToken = data.session.access_token;
+            storedRefreshToken = data.session.refresh_token;
+            updateStoredTokens();
+            showResponse("login-response", data, false);
+
+            // Clear form
+            document.getElementById("login-email").value = "";
+            document.getElementById("login-password").value = "";
+          }
+        } catch (err) {
+          showResponse("login-response", { error: err.message }, true);
+        }
+      }
+
+      async function handleGetUser() {
+        const token = document.getElementById("me-token").value || storedAccessToken;
+
+        if (!token) {
+          showResponse(
+            "me-response",
+            { error: "Access token is required. Sign up or log in first." },
+            true
+          );
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/me", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            showResponse("me-response", data, true);
+          } else {
+            showResponse("me-response", data, false);
+          }
+        } catch (err) {
+          showResponse("me-response", { error: err.message }, true);
+        }
+      }
+
+      async function handleRefresh() {
+        const token = document.getElementById("refresh-token").value || storedRefreshToken;
+
+        if (!token) {
+          showResponse(
+            "refresh-response",
+            { error: "Refresh token is required. Sign up or log in first." },
+            true
+          );
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: token }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            showResponse("refresh-response", data, true);
+          } else {
+            storedAccessToken = data.session.access_token;
+            storedRefreshToken = data.session.refresh_token;
+            updateStoredTokens();
+            showResponse("refresh-response", data, false);
+          }
+        } catch (err) {
+          showResponse("refresh-response", { error: err.message }, true);
+        }
+      }
+    </script>
+  </body>
+</html>
