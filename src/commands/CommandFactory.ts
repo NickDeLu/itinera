@@ -4,6 +4,7 @@ import { CreateItineraryItemCommand } from "./CreateItineraryItemCommand";
 import { EditItineraryItemCommand } from "./EditItineraryItemCommand";
 import { CreateTripCommand } from "./CreateTripCommand";
 import { FetchTripsCommand } from "./FetchTripsCommand";
+import { FetchItineraryItemsCommand } from "./FetchItineraryItemsCommand";
 import { EditTripCommand } from "./EditTripCommand";
 import { DeleteItineraryItemCommand } from "./DeleteItineraryItemCommand";
 import { DeleteTripCommand } from "./DeleteTripCommand";
@@ -59,6 +60,9 @@ export class CommandFactory {
 
       case "fetch_trips":
         return new FetchTripsCommand(toolCall.args.user_id);
+
+      case "fetch_itinerary_items":
+        return new FetchItineraryItemsCommand(toolCall.args.trip_id);
 
       case "edit_trip":
         return new EditTripCommand(toolCall.args.trip_id, {

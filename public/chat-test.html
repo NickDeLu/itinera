@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Itinera Chat Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 700px;
+        width: 100%;
+        height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 25px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+
+      .header h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      .header p {
+        font-size: 13px;
+        opacity: 0.9;
+      }
+
+      .auth-bar {
+        padding: 12px 20px;
+        background: #f8f8ff;
+        border-bottom: 1px solid #eee;
+        flex-shrink: 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .auth-bar label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        white-space: nowrap;
+      }
+
+      .auth-bar input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: "Monaco", monospace;
+      }
+
+      .auth-bar input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .auth-status {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        white-space: nowrap;
+      }
+
+      .auth-status.unset {
+        background: #fee;
+        color: #c33;
+      }
+
+      .auth-status.set {
+        background: #efe;
+        color: #2a2;
+      }
+
+      .chat-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        background: #fafafa;
+      }
+
+      .chat-area:empty::after {
+        content: "Send a message to start chatting with Itinera.";
+        display: block;
+        text-align: center;
+        color: #bbb;
+        font-size: 14px;
+        margin-top: 40px;
+        font-style: italic;
+      }
+
+      .message {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.5;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        animation: fadeIn 0.3s ease;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.ai {
+        align-self: flex-start;
+        background: white;
+        color: #333;
+        border: 1px solid #e0e0e0;
+        border-bottom-left-radius: 4px;
+      }
+
+      .message.ai .role-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .message.loading {
+        align-self: flex-start;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-bottom-left-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .typing-dots {
+        display: flex;
+        gap: 4px;
+      }
+
+      .typing-dots span {
+        width: 8px;
+        height: 8px;
+        background: #667eea;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+
+      .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+      .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+      .typing-dots span:nth-child(3) { animation-delay: 0s; }
+
+      @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+
+      .input-area {
+        padding: 15px 20px;
+        border-top: 1px solid #eee;
+        background: white;
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .input-area input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+
+      .input-area input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .input-area input:disabled {
+        background: #f5f5f5;
+        cursor: not-allowed;
+      }
+
+      .input-area button {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        white-space: nowrap;
+      }
+
+      .input-area button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .input-area button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .input-area button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error-banner {
+        padding: 10px 20px;
+        background: #fee;
+        color: #c33;
+        font-size: 13px;
+        border-bottom: 1px solid #fcc;
+        flex-shrink: 0;
+        display: none;
+      }
+
+      .error-banner.show {
+        display: block;
+      }
+
+      .clear-btn {
+        background: none !important;
+        border: 1px solid #ddd !important;
+        color: #999 !important;
+        padding: 8px 16px !important;
+        font-size: 12px !important;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+
+      .clear-btn:hover {
+        border-color: #c33 !important;
+        color: #c33 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🧳 Itinera Chat</h1>
+        <p>Test the AI travel assistant conversation</p>
+      </div>
+
+      <div class="auth-bar">
+        <label for="token-input">🔑 Token:</label>
+        <input type="password" id="token-input" placeholder="Paste your access token here..." />
+        <span id="auth-status" class="auth-status unset">Unauthenticated</span>
+        <button class="clear-btn" onclick="clearChat()">Clear</button>
+      </div>
+
+      <div id="error-banner" class="error-banner"></div>
+
+      <div id="chat-area" class="chat-area"></div>
+
+      <div class="input-area">
+        <input
+          type="text"
+          id="message-input"
+          placeholder="Describe your itinerary..."
+          onkeydown="if (event.key === 'Enter') sendMessage()"
+          disabled
+        />
+        <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
+      </div>
+    </div>
+
+    <script>
+      let conversationHistory = [];
+
+      // Check token input to enable/disable chat
+      document.getElementById("token-input").addEventListener("input", updateAuthStatus);
+
+      function updateAuthStatus() {
+        const token = document.getElementById("token-input").value.trim();
+        const statusEl = document.getElementById("auth-status");
+        const input = document.getElementById("message-input");
+        const btn = document.getElementById("send-btn");
+
+        if (token) {
+          statusEl.textContent = "✅ Authenticated";
+          statusEl.className = "auth-status set";
+          input.disabled = false;
+          btn.disabled = false;
+          input.focus();
+        } else {
+          statusEl.textContent = "🔴 Unauthenticated";
+          statusEl.className = "auth-status unset";
+          input.disabled = true;
+          btn.disabled = true;
+        }
+      }
+
+      function clearChat() {
+        document.getElementById("chat-area").innerHTML = "";
+        conversationHistory = [];
+        document.getElementById("error-banner").className = "error-banner";
+        document.getElementById("message-input").value = "";
+        document.getElementById("message-input").focus();
+      }
+
+      function showError(msg) {
+        const banner = document.getElementById("error-banner");
+        banner.textContent = "❌ " + msg;
+        banner.className = "error-banner show";
+      }
+
+      function addMessage(role, text) {
+        const chatArea = document.getElementById("chat-area");
+        const div = document.createElement("div");
+        div.className = "message " + role;
+
+        if (role === "ai") {
+          const label = document.createElement("div");
+          label.className = "role-label";
+          label.textContent = "Itinera";
+          div.appendChild(label);
+        }
+
+        const content = document.createElement("div");
+        content.textContent = text;
+        div.appendChild(content);
+
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+
+      function showLoading() {
+        const chatArea = document.getElementById("chat-area");
+        const div = document.createElement("div");
+        div.className = "message loading";
+        div.id = "loading-indicator";
+
+        const label = document.createElement("div");
+        label.className = "role-label";
+        label.textContent = "Itinera";
+        div.appendChild(label);
+
+        const dots = document.createElement("div");
+        dots.className = "typing-dots";
+        dots.innerHTML = "<span></span><span></span><span></span>";
+        div.appendChild(dots);
+
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+
+      function removeLoading() {
+        const el = document.getElementById("loading-indicator");
+        if (el) el.remove();
+      }
+
+      function setInputEnabled(enabled) {
+        document.getElementById("message-input").disabled = !enabled;
+        document.getElementById("send-btn").disabled = !enabled;
+        if (enabled) {
+          document.getElementById("message-input").focus();
+        }
+      }
+
+      async function sendMessage() {
+        const input = document.getElementById("message-input");
+        const message = input.value.trim();
+        if (!message) return;
+
+        const token = document.getElementById("token-input").value.trim();
+        if (!token) {
+          showError("Please enter an access token first.");
+          return;
+        }
+
+        // Clear error
+        document.getElementById("error-banner").className = "error-banner";
+
+        // Add user message to UI
+        addMessage("user", message);
+        input.value = "";
+
+        // Show loading
+        setInputEnabled(false);
+        showLoading();
+
+        try {
+          const response = await fetch("/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+              message: message,
+              history: conversationHistory,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            showError(data.error || "Request failed");
+            removeLoading();
+            setInputEnabled(true);
+            return;
+          }
+
+          // Update conversation history
+          conversationHistory = data.history;
+
+          // Replace loading with AI response
+          removeLoading();
+          addMessage("ai", data.text || "(no response)");
+        } catch (err) {
+          removeLoading();
+          showError(err.message);
+        }
+
+        setInputEnabled(true);
+      }
+    </script>
+  </body>
+</html>
