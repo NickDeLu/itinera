@@ -121,9 +121,9 @@
         font-style: italic;
       }
 
+      /* -- Message bubbles -- */
       .message {
-        max-width: 80%;
-        padding: 12px 16px;
+        max-width: 85%;
         border-radius: 12px;
         font-size: 14px;
         line-height: 1.5;
@@ -141,18 +141,28 @@
         align-self: flex-end;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
+        padding: 12px 16px;
         border-bottom-right-radius: 4px;
       }
 
-      .message.ai {
+      .message.ai-turn {
         align-self: flex-start;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+      }
+
+      .ai-turn-bubble {
         background: white;
         color: #333;
         border: 1px solid #e0e0e0;
+        border-radius: 12px;
         border-bottom-left-radius: 4px;
+        padding: 12px 16px;
       }
 
-      .message.ai .role-label {
+      .ai-turn-bubble .role-label {
         font-size: 11px;
         font-weight: 700;
         color: #667eea;
@@ -161,14 +171,122 @@
         letter-spacing: 0.5px;
       }
 
-      .message.loading {
+      /* -- Tool call accordion -- */
+      .tool-section {
+        border: 1px solid #e8e8ff;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f8f8ff;
+      }
+
+      .tool-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        background: #f0f0ff;
+        transition: background 0.2s;
+      }
+
+      .tool-header:hover {
+        background: #e8e8ff;
+      }
+
+      .tool-header .arrow {
+        transition: transform 0.2s;
+        font-size: 10px;
+      }
+
+      .tool-header .arrow.open {
+        transform: rotate(90deg);
+      }
+
+      .tool-header .tool-name {
+        color: #667eea;
+      }
+
+      .tool-body {
+        display: none;
+        padding: 10px 12px;
+        font-family: "Monaco", "Menlo", monospace;
+        font-size: 12px;
+        background: white;
+        border-top: 1px solid #e8e8ff;
+      }
+
+      .tool-body.open {
+        display: block;
+      }
+
+      .tool-body .result-line {
+        padding: 2px 0;
+      }
+
+      .tool-body .result-line.success {
+        color: #2a2;
+      }
+
+      .tool-body .result-line.error {
+        color: #c33;
+      }
+
+      .tool-body pre {
+        background: #f5f5f5;
+        padding: 8px;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin-top: 4px;
+        font-size: 11px;
+      }
+
+      .tool-entry {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+      }
+
+      .tool-entry:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+
+      .tool-input-output-header {
+        font-size: 11px;
+        font-weight: 600;
+        color: #667eea;
+        padding: 4px 0;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .tool-input-output-header:hover {
+        color: #764ba2;
+      }
+
+      .tool-io {
+        background: #f9f9fb;
+        padding: 8px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 11px;
+        margin: 0;
+      }
+
+      .loading-message {
         align-self: flex-start;
         background: white;
         border: 1px solid #e0e0e0;
+        border-radius: 12px;
         border-bottom-left-radius: 4px;
+        padding: 14px 18px;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
       }
 
       .typing-dots {
@@ -307,13 +425,15 @@
           disabled
         />
         <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
+        <button id="stop-btn" onclick="stopStreaming()" style="display:none;background:linear-gradient(135deg,#e74c3c 0%,#c0392b 100%)">Stop</button>
       </div>
     </div>
 
     <script>
       let conversationHistory = [];
+      let abortController = null;
+      let accumulatedText = "";  // accumulates text_chunk deltas within a turn
 
-      // Check token input to enable/disable chat
       document.getElementById("token-input").addEventListener("input", updateAuthStatus);
 
       function updateAuthStatus() {
@@ -337,6 +457,7 @@
       }
 
       function clearChat() {
+        if (abortController) stopStreaming();
         document.getElementById("chat-area").innerHTML = "";
         conversationHistory = [];
         document.getElementById("error-banner").className = "error-banner";
@@ -350,41 +471,170 @@
         banner.className = "error-banner show";
       }
 
-      function addMessage(role, text) {
+      function addUserMessage(text) {
         const chatArea = document.getElementById("chat-area");
         const div = document.createElement("div");
-        div.className = "message " + role;
+        div.className = "message user";
+        div.textContent = text;
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
 
-        if (role === "ai") {
+      function getOrCreateActiveTurn() {
+        const chatArea = document.getElementById("chat-area");
+        let container = document.getElementById("active-ai-turn");
+        if (!container) {
+          container = document.createElement("div");
+          container.className = "message ai-turn";
+          container.id = "active-ai-turn";
+          chatArea.appendChild(container);
+        }
+        return container;
+      }
+
+      function updateActiveTurnText(text) {
+        const container = getOrCreateActiveTurn();
+        let bubble = container.querySelector(".ai-turn-bubble.streaming");
+        if (!bubble) {
+          bubble = document.createElement("div");
+          bubble.className = "ai-turn-bubble streaming";
           const label = document.createElement("div");
           label.className = "role-label";
           label.textContent = "Itinera";
-          div.appendChild(label);
+          bubble.appendChild(label);
+          bubble.appendChild(document.createElement("div"));
+          container.prepend(bubble);
+        }
+        bubble.lastChild.textContent = text;
+        container.parentElement.scrollTop = container.parentElement.scrollHeight;
+      }
+
+      function addToolCall(tool, args) {
+        const container = getOrCreateActiveTurn();
+        // Always append the tool section AFTER the text bubble
+        let section = container.querySelector(".tool-section");
+        if (!section) {
+          section = document.createElement("div");
+          section.className = "tool-section";
+          container.appendChild(section);
+
+          const header = document.createElement("div");
+          header.className = "tool-header";
+          const arrow = document.createElement("span");
+          arrow.className = "arrow";
+          arrow.textContent = "▶";
+          header.appendChild(arrow);
+          const label = document.createElement("span");
+          label.textContent = "🔧 Tools";
+          header.appendChild(label);
+          section.appendChild(header);
+
+          const toolBody = document.createElement("div");
+          toolBody.className = "tool-body";
+          section.appendChild(toolBody);
+
+          header.onclick = function() { toolBody.classList.toggle("open"); arrow.classList.toggle("open"); };
         }
 
-        const content = document.createElement("div");
-        content.textContent = text;
-        div.appendChild(content);
+        const toolBody = section.querySelector(".tool-body");
 
-        chatArea.appendChild(div);
-        chatArea.scrollTop = chatArea.scrollHeight;
+        // Tool call entry container
+        const toolEntry = document.createElement("div");
+        toolEntry.className = "tool-entry";
+        toolEntry.id = "tool-entry-" + tool;
+
+        // Status line (always visible)
+        const statusLine = document.createElement("div");
+        statusLine.className = "result-line";
+        statusLine.textContent = `⏳ ${tool}`;
+        statusLine.id = "tool-" + tool;
+        toolEntry.appendChild(statusLine);
+
+        // Collapsible Input section
+        const inputHeader = document.createElement("div");
+        inputHeader.className = "tool-input-output-header";
+        inputHeader.textContent = "▼ Input";
+        inputHeader.style.cursor = "pointer";
+        const inputPre = document.createElement("pre");
+        inputPre.className = "tool-io";
+        inputPre.id = "tool-args-" + tool;
+        inputPre.textContent = JSON.stringify(args, null, 2);
+        toolEntry.appendChild(inputHeader);
+        toolEntry.appendChild(inputPre);
+
+        // Output section (hidden until result arrives)
+        const outputHeader = document.createElement("div");
+        outputHeader.className = "tool-input-output-header";
+        outputHeader.textContent = "Output";
+        outputHeader.style.cursor = "pointer";
+        outputHeader.style.display = "none";
+        outputHeader.id = "tool-out-header-" + tool;
+        const outputPre = document.createElement("pre");
+        outputPre.className = "tool-io";
+        outputPre.id = "tool-result-" + tool;
+        outputPre.textContent = "waiting...";
+        outputPre.style.display = "none";
+        toolEntry.appendChild(outputHeader);
+        toolEntry.appendChild(outputPre);
+
+        // Toggle behavior for Input/Output sections
+        [inputHeader, outputHeader].forEach(h => {
+          h.onclick = function() {
+            const pre = h.nextElementSibling;
+            if (!pre) return;
+            const isOpen = h.textContent.startsWith("▼");
+            h.textContent = isOpen
+              ? h.textContent.replace("▼", "▶")
+              : h.textContent.replace("▶", "▼");
+            pre.style.display = isOpen ? "none" : "block";
+          };
+        });
+
+        toolBody.appendChild(toolEntry);
+      }
+
+      function updateToolResult(tool, result) {
+        const line = document.getElementById("tool-" + tool);
+        if (line) {
+          line.className = "result-line " + (result?.error ? "error" : "success");
+          line.textContent = `${result?.error ? "❌" : "✅"} ${tool}`;
+          // Show output section
+          const outHeader = document.getElementById("tool-out-header-" + tool);
+          if (outHeader) outHeader.style.display = "block";
+          const resultPre = document.getElementById("tool-result-" + tool);
+          if (resultPre) {
+            resultPre.textContent = JSON.stringify(result, null, 2);
+            resultPre.style.display = "block";
+          }
+        }
+      }
+
+      function finalizeActiveTurn() {
+        const el = document.getElementById("active-ai-turn");
+        if (el) {
+          el.id = "";
+          // Remove streaming class from bubble
+          const bubble = el.querySelector(".ai-turn-bubble.streaming");
+          if (bubble) bubble.className = "ai-turn-bubble";
+        }
       }
 
       function showLoading() {
         const chatArea = document.getElementById("chat-area");
         const div = document.createElement("div");
-        div.className = "message loading";
+        div.className = "loading-message";
         div.id = "loading-indicator";
-
-        const label = document.createElement("div");
-        label.className = "role-label";
-        label.textContent = "Itinera";
-        div.appendChild(label);
 
         const dots = document.createElement("div");
         dots.className = "typing-dots";
         dots.innerHTML = "<span></span><span></span><span></span>";
         div.appendChild(dots);
+
+        const label = document.createElement("span");
+        label.textContent = "Itinera is thinking...";
+        label.style.color = "#888";
+        label.style.fontSize = "13px";
+        div.appendChild(label);
 
         chatArea.appendChild(div);
         chatArea.scrollTop = chatArea.scrollHeight;
@@ -398,9 +648,19 @@
       function setInputEnabled(enabled) {
         document.getElementById("message-input").disabled = !enabled;
         document.getElementById("send-btn").disabled = !enabled;
-        if (enabled) {
-          document.getElementById("message-input").focus();
+        const stopBtn = document.getElementById("stop-btn");
+        if (stopBtn) stopBtn.style.display = enabled ? "none" : "inline-block";
+        if (enabled) document.getElementById("message-input").focus();
+      }
+
+      function stopStreaming() {
+        if (abortController) {
+          abortController.abort();
+          abortController = null;
         }
+        finalizeActiveTurn();
+        removeLoading();
+        setInputEnabled(true);
       }
 
       async function sendMessage() {
@@ -414,51 +674,148 @@
           return;
         }
 
-        // Clear error
         document.getElementById("error-banner").className = "error-banner";
 
-        // Add user message to UI
-        addMessage("user", message);
+        // Clean up any active turn from a previous stream
+        stopStreaming();
+
+        addUserMessage(message);
         input.value = "";
 
-        // Show loading
         setInputEnabled(false);
         showLoading();
 
+        // Validate token before using in headers (no emoji/non-ASCII)
+        const cleanToken = token.replace(/[^\x20-\x7E]/g, "");
+        if (cleanToken !== token || !cleanToken) {
+          showError("Token contains invalid characters — please re-authenticate");
+          removeLoading();
+          setInputEnabled(true);
+          return;
+        }
+
+        abortController = new AbortController();
+        const signal = abortController.signal;
+
         try {
-          const response = await fetch("/chat", {
+          const response = await fetch("/chat/stream", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
+              Authorization: "Bearer " + cleanToken,
             },
             body: JSON.stringify({
               message: message,
               history: conversationHistory,
             }),
+            signal,
           });
 
-          const data = await response.json();
-
           if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
             showError(data.error || "Request failed");
             removeLoading();
             setInputEnabled(true);
             return;
           }
 
-          // Update conversation history
-          conversationHistory = data.history;
+          // Read the SSE stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
 
-          // Replace loading with AI response
-          removeLoading();
-          addMessage("ai", data.text || "(no response)");
+          let currentEvent = "";
+          let currentData = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim();
+              } else if (line.startsWith("data: ")) {
+                currentData = line.slice(6);
+              } else if (line === "") {
+                // Empty line = end of SSE message
+                if (currentEvent && currentData) {
+                  handleSSEEvent(currentEvent, currentData);
+                }
+                currentEvent = "";
+                currentData = "";
+              }
+            }
+          }
+
+          // Process final buffer
+          if (currentEvent && currentData) {
+            handleSSEEvent(currentEvent, currentData);
+          }
+
         } catch (err) {
-          removeLoading();
-          showError(err.message);
+          if (err.name === "AbortError") {
+            // User clicked stop — this is normal
+          } else {
+            showError(err.message);
+          }
         }
 
+        abortController = null;
+        finalizeActiveTurn();
+        removeLoading();
         setInputEnabled(true);
+      }
+
+      function handleSSEEvent(event, dataStr) {
+        let data;
+        try { data = JSON.parse(dataStr); } catch { data = {}; }
+
+        switch (event) {
+          case "turn_start":
+            // Finalize any previous turn before starting a new one
+            finalizeActiveTurn();
+            accumulatedText = "";
+            break;
+
+          case "text_chunk":
+            removeLoading();
+            accumulatedText += data.text || "";
+            // Strip JSON prefix — only show text after "text":"
+            const m = accumulatedText.match(/"text"\s*:\s*"([\s\S]*)/);
+            updateActiveTurnText(m ? m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : "");
+            break;
+
+          case "turn_done":
+            if (data.text) {
+              accumulatedText = data.text;
+              updateActiveTurnText(accumulatedText);
+            }
+            break;
+
+          case "tool_call":
+            addToolCall(data.tool, data.args);
+            break;
+
+          case "tool_result":
+            updateToolResult(data.tool, data.result);
+            break;
+
+          case "error":
+            showError(data.error || "Unknown error");
+            break;
+
+          case "history":
+            conversationHistory = data.history || [];
+            break;
+
+          case "done":
+            finalizeActiveTurn();
+            break;
+        }
       }
     </script>
   </body>
