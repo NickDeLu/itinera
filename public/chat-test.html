@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Itinera Chat Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 700px;
+        width: 100%;
+        height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 25px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+
+      .header h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      .header p {
+        font-size: 13px;
+        opacity: 0.9;
+      }
+
+      .auth-bar {
+        padding: 12px 20px;
+        background: #f8f8ff;
+        border-bottom: 1px solid #eee;
+        flex-shrink: 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .auth-bar label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        white-space: nowrap;
+      }
+
+      .auth-bar input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: "Monaco", monospace;
+      }
+
+      .auth-bar input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .auth-status {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        white-space: nowrap;
+      }
+
+      .auth-status.unset {
+        background: #fee;
+        color: #c33;
+      }
+
+      .auth-status.set {
+        background: #efe;
+        color: #2a2;
+      }
+
+      .chat-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        background: #fafafa;
+      }
+
+      .chat-area:empty::after {
+        content: "Send a message to start chatting with Itinera.";
+        display: block;
+        text-align: center;
+        color: #bbb;
+        font-size: 14px;
+        margin-top: 40px;
+        font-style: italic;
+      }
+
+      /* -- Message bubbles -- */
+      .message {
+        max-width: 85%;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.5;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        animation: fadeIn 0.3s ease;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 16px;
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.ai-turn {
+        align-self: flex-start;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+      }
+
+      .ai-turn-bubble {
+        background: white;
+        color: #333;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        border-bottom-left-radius: 4px;
+        padding: 12px 16px;
+      }
+
+      .ai-turn-bubble .role-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      /* -- Tool call accordion -- */
+      .tool-section {
+        border: 1px solid #e8e8ff;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f8f8ff;
+      }
+
+      .tool-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        background: #f0f0ff;
+        transition: background 0.2s;
+      }
+
+      .tool-header:hover {
+        background: #e8e8ff;
+      }
+
+      .tool-header .arrow {
+        transition: transform 0.2s;
+        font-size: 10px;
+      }
+
+      .tool-header .arrow.open {
+        transform: rotate(90deg);
+      }
+
+      .tool-header .tool-name {
+        color: #667eea;
+      }
+
+      .tool-body {
+        display: none;
+        padding: 10px 12px;
+        font-family: "Monaco", "Menlo", monospace;
+        font-size: 12px;
+        background: white;
+        border-top: 1px solid #e8e8ff;
+      }
+
+      .tool-body.open {
+        display: block;
+      }
+
+      .tool-body .result-line {
+        padding: 2px 0;
+      }
+
+      .tool-body .result-line.success {
+        color: #2a2;
+      }
+
+      .tool-body .result-line.error {
+        color: #c33;
+      }
+
+      .tool-body pre {
+        background: #f5f5f5;
+        padding: 8px;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin-top: 4px;
+        font-size: 11px;
+      }
+
+      .tool-entry {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+      }
+
+      .tool-entry:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+
+      .tool-input-output-header {
+        font-size: 11px;
+        font-weight: 600;
+        color: #667eea;
+        padding: 4px 0;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .tool-input-output-header:hover {
+        color: #764ba2;
+      }
+
+      .tool-io {
+        background: #f9f9fb;
+        padding: 8px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 11px;
+        margin: 0;
+      }
+
+      .loading-message {
+        align-self: flex-start;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        border-bottom-left-radius: 4px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .typing-dots {
+        display: flex;
+        gap: 4px;
+      }
+
+      .typing-dots span {
+        width: 8px;
+        height: 8px;
+        background: #667eea;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+
+      .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+      .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+      .typing-dots span:nth-child(3) { animation-delay: 0s; }
+
+      @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+
+      .input-area {
+        padding: 15px 20px;
+        border-top: 1px solid #eee;
+        background: white;
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .input-area input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+
+      .input-area input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .input-area input:disabled {
+        background: #f5f5f5;
+        cursor: not-allowed;
+      }
+
+      .input-area button {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        white-space: nowrap;
+      }
+
+      .input-area button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .input-area button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .input-area button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error-banner {
+        padding: 10px 20px;
+        background: #fee;
+        color: #c33;
+        font-size: 13px;
+        border-bottom: 1px solid #fcc;
+        flex-shrink: 0;
+        display: none;
+      }
+
+      .error-banner.show {
+        display: block;
+      }
+
+      .clear-btn {
+        background: none !important;
+        border: 1px solid #ddd !important;
+        color: #999 !important;
+        padding: 8px 16px !important;
+        font-size: 12px !important;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+
+      .clear-btn:hover {
+        border-color: #c33 !important;
+        color: #c33 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🧳 Itinera Chat</h1>
+        <p>Test the AI travel assistant conversation</p>
+      </div>
+
+      <div class="auth-bar">
+        <label for="token-input">🔑 Token:</label>
+        <input type="password" id="token-input" placeholder="Paste your access token here..." />
+        <span id="auth-status" class="auth-status unset">Unauthenticated</span>
+        <button class="clear-btn" onclick="clearChat()">Clear</button>
+      </div>
+
+      <div id="error-banner" class="error-banner"></div>
+
+      <div id="chat-area" class="chat-area"></div>
+
+      <div class="input-area">
+        <input
+          type="text"
+          id="message-input"
+          placeholder="Describe your itinerary..."
+          onkeydown="if (event.key === 'Enter') sendMessage()"
+          disabled
+        />
+        <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
+        <button id="stop-btn" onclick="stopStreaming()" style="display:none;background:linear-gradient(135deg,#e74c3c 0%,#c0392b 100%)">Stop</button>
+      </div>
+    </div>
+
+    <script>
+      let conversationHistory = [];
+      let abortController = null;
+      let accumulatedText = "";  // accumulates text_chunk deltas within a turn
+
+      document.getElementById("token-input").addEventListener("input", updateAuthStatus);
+
+      function updateAuthStatus() {
+        const token = document.getElementById("token-input").value.trim();
+        const statusEl = document.getElementById("auth-status");
+        const input = document.getElementById("message-input");
+        const btn = document.getElementById("send-btn");
+
+        if (token) {
+          statusEl.textContent = "✅ Authenticated";
+          statusEl.className = "auth-status set";
+          input.disabled = false;
+          btn.disabled = false;
+          input.focus();
+        } else {
+          statusEl.textContent = "🔴 Unauthenticated";
+          statusEl.className = "auth-status unset";
+          input.disabled = true;
+          btn.disabled = true;
+        }
+      }
+
+      function clearChat() {
+        if (abortController) stopStreaming();
+        document.getElementById("chat-area").innerHTML = "";
+        conversationHistory = [];
+        document.getElementById("error-banner").className = "error-banner";
+        document.getElementById("message-input").value = "";
+        document.getElementById("message-input").focus();
+      }
+
+      function showError(msg) {
+        const banner = document.getElementById("error-banner");
+        banner.textContent = "❌ " + msg;
+        banner.className = "error-banner show";
+      }
+
+      function addUserMessage(text) {
+        const chatArea = document.getElementById("chat-area");
+        const div = document.createElement("div");
+        div.className = "message user";
+        div.textContent = text;
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+
+      function getOrCreateActiveTurn() {
+        const chatArea = document.getElementById("chat-area");
+        let container = document.getElementById("active-ai-turn");
+        if (!container) {
+          container = document.createElement("div");
+          container.className = "message ai-turn";
+          container.id = "active-ai-turn";
+          chatArea.appendChild(container);
+        }
+        return container;
+      }
+
+      function updateActiveTurnText(text) {
+        const container = getOrCreateActiveTurn();
+        let bubble = container.querySelector(".ai-turn-bubble.streaming");
+        if (!bubble) {
+          bubble = document.createElement("div");
+          bubble.className = "ai-turn-bubble streaming";
+          const label = document.createElement("div");
+          label.className = "role-label";
+          label.textContent = "Itinera";
+          bubble.appendChild(label);
+          bubble.appendChild(document.createElement("div"));
+          container.prepend(bubble);
+        }
+        bubble.lastChild.textContent = text;
+        container.parentElement.scrollTop = container.parentElement.scrollHeight;
+      }
+
+      function addToolCall(tool, args) {
+        const container = getOrCreateActiveTurn();
+        // Always append the tool section AFTER the text bubble
+        let section = container.querySelector(".tool-section");
+        if (!section) {
+          section = document.createElement("div");
+          section.className = "tool-section";
+          container.appendChild(section);
+
+          const header = document.createElement("div");
+          header.className = "tool-header";
+          const arrow = document.createElement("span");
+          arrow.className = "arrow";
+          arrow.textContent = "▶";
+          header.appendChild(arrow);
+          const label = document.createElement("span");
+          label.textContent = "🔧 Tools";
+          header.appendChild(label);
+          section.appendChild(header);
+
+          const toolBody = document.createElement("div");
+          toolBody.className = "tool-body";
+          section.appendChild(toolBody);
+
+          header.onclick = function() { toolBody.classList.toggle("open"); arrow.classList.toggle("open"); };
+        }
+
+        const toolBody = section.querySelector(".tool-body");
+
+        // Tool call entry container
+        const toolEntry = document.createElement("div");
+        toolEntry.className = "tool-entry";
+        toolEntry.id = "tool-entry-" + tool;
+
+        // Status line (always visible)
+        const statusLine = document.createElement("div");
+        statusLine.className = "result-line";
+        statusLine.textContent = `⏳ ${tool}`;
+        statusLine.id = "tool-" + tool;
+        toolEntry.appendChild(statusLine);
+
+        // Collapsible Input section
+        const inputHeader = document.createElement("div");
+        inputHeader.className = "tool-input-output-header";
+        inputHeader.textContent = "▼ Input";
+        inputHeader.style.cursor = "pointer";
+        const inputPre = document.createElement("pre");
+        inputPre.className = "tool-io";
+        inputPre.id = "tool-args-" + tool;
+        inputPre.textContent = JSON.stringify(args, null, 2);
+        toolEntry.appendChild(inputHeader);
+        toolEntry.appendChild(inputPre);
+
+        // Output section (hidden until result arrives)
+        const outputHeader = document.createElement("div");
+        outputHeader.className = "tool-input-output-header";
+        outputHeader.textContent = "Output";
+        outputHeader.style.cursor = "pointer";
+        outputHeader.style.display = "none";
+        outputHeader.id = "tool-out-header-" + tool;
+        const outputPre = document.createElement("pre");
+        outputPre.className = "tool-io";
+        outputPre.id = "tool-result-" + tool;
+        outputPre.textContent = "waiting...";
+        outputPre.style.display = "none";
+        toolEntry.appendChild(outputHeader);
+        toolEntry.appendChild(outputPre);
+
+        // Toggle behavior for Input/Output sections
+        [inputHeader, outputHeader].forEach(h => {
+          h.onclick = function() {
+            const pre = h.nextElementSibling;
+            if (!pre) return;
+            const isOpen = h.textContent.startsWith("▼");
+            h.textContent = isOpen
+              ? h.textContent.replace("▼", "▶")
+              : h.textContent.replace("▶", "▼");
+            pre.style.display = isOpen ? "none" : "block";
+          };
+        });
+
+        toolBody.appendChild(toolEntry);
+      }
+
+      function updateToolResult(tool, result) {
+        const line = document.getElementById("tool-" + tool);
+        if (line) {
+          line.className = "result-line " + (result?.error ? "error" : "success");
+          line.textContent = `${result?.error ? "❌" : "✅"} ${tool}`;
+          // Show output section
+          const outHeader = document.getElementById("tool-out-header-" + tool);
+          if (outHeader) outHeader.style.display = "block";
+          const resultPre = document.getElementById("tool-result-" + tool);
+          if (resultPre) {
+            resultPre.textContent = JSON.stringify(result, null, 2);
+            resultPre.style.display = "block";
+          }
+        }
+      }
+
+      function finalizeActiveTurn() {
+        const el = document.getElementById("active-ai-turn");
+        if (el) {
+          el.id = "";
+          // Remove streaming class from bubble
+          const bubble = el.querySelector(".ai-turn-bubble.streaming");
+          if (bubble) bubble.className = "ai-turn-bubble";
+        }
+      }
+
+      function showLoading() {
+        const chatArea = document.getElementById("chat-area");
+        const div = document.createElement("div");
+        div.className = "loading-message";
+        div.id = "loading-indicator";
+
+        const dots = document.createElement("div");
+        dots.className = "typing-dots";
+        dots.innerHTML = "<span></span><span></span><span></span>";
+        div.appendChild(dots);
+
+        const label = document.createElement("span");
+        label.textContent = "Itinera is thinking...";
+        label.style.color = "#888";
+        label.style.fontSize = "13px";
+        div.appendChild(label);
+
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+
+      function removeLoading() {
+        const el = document.getElementById("loading-indicator");
+        if (el) el.remove();
+      }
+
+      function setInputEnabled(enabled) {
+        document.getElementById("message-input").disabled = !enabled;
+        document.getElementById("send-btn").disabled = !enabled;
+        const stopBtn = document.getElementById("stop-btn");
+        if (stopBtn) stopBtn.style.display = enabled ? "none" : "inline-block";
+        if (enabled) document.getElementById("message-input").focus();
+      }
+
+      function stopStreaming() {
+        if (abortController) {
+          abortController.abort();
+          abortController = null;
+        }
+        finalizeActiveTurn();
+        removeLoading();
+        setInputEnabled(true);
+      }
+
+      async function sendMessage() {
+        const input = document.getElementById("message-input");
+        const message = input.value.trim();
+        if (!message) return;
+
+        const token = document.getElementById("token-input").value.trim();
+        if (!token) {
+          showError("Please enter an access token first.");
+          return;
+        }
+
+        document.getElementById("error-banner").className = "error-banner";
+
+        // Clean up any active turn from a previous stream
+        stopStreaming();
+
+        addUserMessage(message);
+        input.value = "";
+
+        setInputEnabled(false);
+        showLoading();
+
+        // Validate token before using in headers (no emoji/non-ASCII)
+        const cleanToken = token.replace(/[^\x20-\x7E]/g, "");
+        if (cleanToken !== token || !cleanToken) {
+          showError("Token contains invalid characters — please re-authenticate");
+          removeLoading();
+          setInputEnabled(true);
+          return;
+        }
+
+        abortController = new AbortController();
+        const signal = abortController.signal;
+
+        try {
+          const response = await fetch("/chat/stream", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + cleanToken,
+            },
+            body: JSON.stringify({
+              message: message,
+              history: conversationHistory,
+            }),
+            signal,
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            showError(data.error || "Request failed");
+            removeLoading();
+            setInputEnabled(true);
+            return;
+          }
+
+          // Read the SSE stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          let currentEvent = "";
+          let currentData = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim();
+              } else if (line.startsWith("data: ")) {
+                currentData = line.slice(6);
+              } else if (line === "") {
+                // Empty line = end of SSE message
+                if (currentEvent && currentData) {
+                  handleSSEEvent(currentEvent, currentData);
+                }
+                currentEvent = "";
+                currentData = "";
+              }
+            }
+          }
+
+          // Process final buffer
+          if (currentEvent && currentData) {
+            handleSSEEvent(currentEvent, currentData);
+          }
+
+        } catch (err) {
+          if (err.name === "AbortError") {
+            // User clicked stop — this is normal
+          } else {
+            showError(err.message);
+          }
+        }
+
+        abortController = null;
+        finalizeActiveTurn();
+        removeLoading();
+        setInputEnabled(true);
+      }
+
+      function handleSSEEvent(event, dataStr) {
+        let data;
+        try { data = JSON.parse(dataStr); } catch { data = {}; }
+
+        switch (event) {
+          case "turn_start":
+            // Finalize any previous turn before starting a new one
+            finalizeActiveTurn();
+            accumulatedText = "";
+            break;
+
+          case "text_chunk":
+            removeLoading();
+            accumulatedText += data.text || "";
+            // Strip JSON prefix — only show text after "text":"
+            const m = accumulatedText.match(/"text"\s*:\s*"([\s\S]*)/);
+            updateActiveTurnText(m ? m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : "");
+            break;
+
+          case "turn_done":
+            if (data.text) {
+              accumulatedText = data.text;
+              updateActiveTurnText(accumulatedText);
+            }
+            break;
+
+          case "tool_call":
+            addToolCall(data.tool, data.args);
+            break;
+
+          case "tool_result":
+            updateToolResult(data.tool, data.result);
+            break;
+
+          case "error":
+            showError(data.error || "Unknown error");
+            break;
+
+          case "history":
+            conversationHistory = data.history || [];
+            break;
+
+          case "done":
+            finalizeActiveTurn();
+            break;
+        }
+      }
+    </script>
+  </body>
+</html>

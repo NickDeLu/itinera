@@ -8,8 +8,8 @@ export class EditItineraryItemCommand implements Command {
       title?: string;
       description?: string;
       location?: string;
-      startTimestamp?: string;
-      endTimestamp?: string;
+      start_timestamp?: string;
+      end_timestamp?: string;
       ordinal?: number;
       status?: string;
       metadata?: Record<string, any>;

@@ -5,6 +5,8 @@ import path from "path";
 
 import { supabaseAdmin } from "./database";
 import authRoutes from "./routes/auth";
+import { runChatLoop, runStreamingChat } from "./ai/ChatEngine";
+import { authMiddleware, AuthenticatedRequest } from "./middleware/auth";
 
 const PORT = process.env.PORT || 5000;
 
@@ -18,6 +20,36 @@ app.use(express.static(path.join(__dirname, "../public")));
 
 // Register auth routes
 app.use("/auth", authRoutes);
+
+// Chat endpoint — delegates to the shared ChatEngine
+app.post("/chat", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { message, history } = req.body;
+    const userId = req.user!.id;
+
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const { turns, history: newHistory } = await runChatLoop(userId, message, history || []);
+    return res.json({ turns, history: newHistory });
+  } catch (err: any) {
+    console.error("Chat endpoint error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Streaming chat endpoint (SSE)
+app.post("/chat/stream", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const { message, history } = req.body;
+  const userId = req.user!.id;
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  await runStreamingChat(userId, message, history || [], res);
+});
 
 const httpServer = createServer(app);
 
@@ -34,6 +66,7 @@ httpServer.listen(PORT, async () => {
 
     console.log(`✓ HTTP API running at http://localhost:${PORT}`);
     console.log(`✓ Test UI available at http://localhost:${PORT}/test.html`);
+    console.log(`✓ Chat Test UI available at http://localhost:${PORT}/chat-test.html`);
   } catch (err) {
     console.error("Server startup error:", err);
   }
