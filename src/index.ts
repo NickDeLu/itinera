@@ -5,6 +5,7 @@ import path from "path";
 
 import { supabaseAdmin } from "./database";
 import authRoutes from "./routes/auth";
+import mailgunRoutes from "./routes/mailgun";
 import { runChatLoop, runStreamingChat } from "./ai/ChatEngine";
 import { authMiddleware, AuthenticatedRequest } from "./middleware/auth";
 
@@ -14,12 +15,16 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Register auth routes
 app.use("/auth", authRoutes);
+
+// Register Mailgun webhook routes
+app.use("/webhooks/mailgun", mailgunRoutes);
 
 // Chat endpoint — delegates to the shared ChatEngine
 app.post("/chat", authMiddleware, async (req: AuthenticatedRequest, res) => {
