@@ -18,6 +18,7 @@ export class CommandFactory {
           toolCall.args.sender_email,
           toolCall.args.recipient_email,
           toolCall.args.subject,
+          toolCall.args.body,
           toolCall.args.received_at,
           toolCall.args.trip_id
         );

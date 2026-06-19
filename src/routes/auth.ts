@@ -1,7 +1,8 @@
 import { Router } from "express";
+import { Response } from "express";
 import { supabaseAdmin } from "../database";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth";
-import { Response } from "express";
+import { UserEmailRepository } from "../repositories/UserEmailRepository";
 
 const router = Router();
 
@@ -47,6 +48,15 @@ router.post("/signup", async (req: AuthenticatedRequest, res: Response) => {
         error: profileError.message || "Failed to create user profile",
         detail: profileError.details || undefined,
       });
+    }
+
+    // Auto-add signup email to trusted user_emails whitelist
+    try {
+      await UserEmailRepository.addEmail(authData.user.id, email, true);
+      console.log("[auth] Auto-added email to user_emails:", email);
+    } catch (emailError) {
+      // Non-fatal: don't fail signup if this step fails, just log
+      console.error("[auth] Failed to auto-add email to user_emails:", emailError);
     }
 
     return res.status(201).json({

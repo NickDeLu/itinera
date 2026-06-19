@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import multer from "multer";
 import { EmailRepository } from "../repositories/EmailRepository";
+import { UserEmailRepository } from "../repositories/UserEmailRepository";
+import { EmailProcessorService } from "../services/EmailProcessorService";
 
 const router = Router();
 
@@ -41,13 +43,13 @@ function verifyMailgunSignature(
  * Receives inbound email data from Mailgun's "Send a sample POST" feature
  * or from a real Mailgun route webhook.
  *
- * Mailgun sends multipart/form-data with fields like:
- *   - from, to, cc, subject
- *   - body-plain, body-html, stripped-text, stripped-html
- *   - sender, recipient
- *   - attachments (count), message-headers (JSON), message-url
- *   - timestamp, token, signature (for signature verification)
- *   - attachment-1, attachment-2, ... (file attachments)
+ * Flow:
+ *   1. Verify signature (if present)
+ *   2. Extract sender email (the user who forwarded the email)
+ *   3. Look up user by sender email in user_emails whitelist
+ *   4. If user found → save email to DB → fire-and-forget AI processing
+ *   5. If user NOT found → discard silently (spam protection)
+ *   6. Always return 200 to Mailgun (stops retries)
  */
 router.post("/inbound", upload.any(), async (req: Request, res: Response) => {
   try {
@@ -86,28 +88,56 @@ router.post("/inbound", upload.any(), async (req: Request, res: Response) => {
       subject,
       bodyPreview: bodyPlain.substring(0, 200),
       attachments,
-      messageUrl,
     });
 
-    // --- Save to database ---
+    // --- Look up user by sender email ---
+    // The sender is the user who forwarded the email to itinera.space.
+    // We check if this sender email is in the user_emails whitelist.
+    const userId = await UserEmailRepository.findUserIdByEmail(sender);
+
+    if (!userId) {
+      // No user has whitelisted this sender email — discard silently
+      console.log(`[mailgun] No user found for sender "${sender}" — discarding`);
+      return res.status(200).json({
+        message: "Email received (no matching user)",
+        status: "ok",
+      });
+    }
+
+    console.log(`[mailgun] Found user ${userId} for sender "${sender}"`);
+
+    // --- Save to database with real user_id ---
+    let emailId: string;
     try {
       const emailMessage = await EmailRepository.saveEmailMessage(
-        "00000000-0000-0000-0000-000000000000", // placeholder — replace with user lookup
+        userId,
         sender || undefined,
         recipient || undefined,
         subject || undefined,
+        bodyPlain || undefined,
         new Date().toISOString()
       );
-      console.log("[mailgun] Email saved to database with ID:", emailMessage.id);
+      emailId = emailMessage.id;
+      console.log("[mailgun] Email saved to database with ID:", emailId);
     } catch (dbError) {
-      // Don't fail the webhook if DB save fails — log and continue
       console.error("[mailgun] Failed to save email to database:", dbError);
+      return res.status(200).json({
+        message: "Email received (save failed)",
+        status: "ok",
+      });
     }
+
+    // --- Fire-and-forget AI processing ---
+    // Don't await — Mailgun gets 200 immediately, processing happens in background
+    EmailProcessorService.processEmail(emailId, userId).catch((err) => {
+      console.error(`[mailgun] Background processing failed for email ${emailId}:`, err.message);
+    });
 
     // --- Acknowledge receipt (200 OK stops Mailgun retries) ---
     return res.status(200).json({
       message: "Email received successfully",
       status: "ok",
+      email_id: emailId,
     });
   } catch (err: any) {
     console.error("[mailgun] Webhook error:", err.message);
