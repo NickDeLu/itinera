@@ -7,6 +7,7 @@ export class SaveEmailDataCommand implements Command {
     private senderEmail?: string,
     private recipientEmail?: string,
     private subject?: string,
+    private body?: string,
     private receivedAt?: string,
     private tripId?: string
   ) {}
@@ -17,6 +18,7 @@ export class SaveEmailDataCommand implements Command {
       this.senderEmail,
       this.recipientEmail,
       this.subject,
+      this.body,
       this.receivedAt,
       this.tripId
     );

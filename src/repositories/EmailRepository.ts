@@ -7,6 +7,7 @@ export interface EmailMessage {
   sender_email?: string;
   recipient_email?: string;
   subject?: string;
+  body?: string;
   received_at?: string;
   parsed: boolean;
   parsed_at?: string;
@@ -20,6 +21,7 @@ export class EmailRepository {
     senderEmail?: string,
     recipientEmail?: string,
     subject?: string,
+    body?: string,
     receivedAt?: string,
     tripId?: string
   ): Promise<EmailMessage> {
@@ -30,6 +32,7 @@ export class EmailRepository {
         sender_email: senderEmail,
         recipient_email: recipientEmail,
         subject,
+        body,
         received_at: receivedAt,
         trip_id: tripId,
         parsed: false,

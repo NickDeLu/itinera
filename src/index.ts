@@ -6,6 +6,7 @@ import path from "path";
 import { supabaseAdmin } from "./database";
 import authRoutes from "./routes/auth";
 import mailgunRoutes from "./routes/mailgun";
+import userEmailsRoutes from "./routes/userEmails";
 import { runChatLoop, runStreamingChat } from "./ai/ChatEngine";
 import { authMiddleware, AuthenticatedRequest } from "./middleware/auth";
 
@@ -15,7 +16,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, "../public")));
@@ -25,6 +26,9 @@ app.use("/auth", authRoutes);
 
 // Register Mailgun webhook routes
 app.use("/webhooks/mailgun", mailgunRoutes);
+
+// Register user email management routes
+app.use("/user/emails", userEmailsRoutes);
 
 // Chat endpoint — delegates to the shared ChatEngine
 app.post("/chat", authMiddleware, async (req: AuthenticatedRequest, res) => {
