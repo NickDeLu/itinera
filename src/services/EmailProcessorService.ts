@@ -65,7 +65,18 @@ export class EmailProcessorService {
       console.log(`[EmailProcessor] AI parsed: trip_id=${extracted.trip_id || "new"}, items=${extracted.items.length}`);
     } catch (aiError: any) {
       console.error(`[EmailProcessor] AI parsing failed for email ${emailId}:`, aiError.message);
-      await EmailRepository.markEmailAsParsed(emailId);
+      // Save empty parsed_data so the review form has a valid (blank) structure to render
+      await EmailRepository.routeEmailToReviewWithEmptyData(emailId, [
+        "AI parsing failed — please fill in the activity details manually",
+      ]);
+      return;
+    }
+
+    // 4b) Routing decision — must come before any DB writes
+    const { route, reasons } = this.shouldRouteToReview(extracted, existingTrips);
+    if (route) {
+      console.log(`[EmailProcessor] Routing email ${emailId} to review: ${reasons.join("; ")}`);
+      await EmailRepository.routeEmailToReview(emailId, extracted, reasons);
       return;
     }
 
@@ -79,18 +90,14 @@ export class EmailProcessorService {
           tripId = existingTrip.id;
           console.log(`[EmailProcessor] Using existing trip ${tripId}: "${existingTrip.name}"`);
         } else {
-          // AI returned invalid trip_id — fall back to creating a new trip
-          console.warn(`[EmailProcessor] AI returned invalid trip_id "${extracted.trip_id}" — creating new trip`);
-          const trip = await TripRepository.createTrip(
-            userId,
-            extracted.trip.name,
-            extracted.trip.destination || undefined,
-            extracted.trip.start_date || undefined,
-            extracted.trip.end_date || undefined,
-            extracted.trip.description || undefined
+          // AI returned invalid trip_id — route to review rather than silently creating a trip
+          console.warn(`[EmailProcessor] AI returned invalid trip_id "${extracted.trip_id}" — routing to review`);
+          await EmailRepository.routeEmailToReview(
+            emailId,
+            extracted,
+            ["AI matched an invalid trip — please assign manually"]
           );
-          tripId = trip.id;
-          console.log(`[EmailProcessor] Created new trip ${tripId}: "${extracted.trip.name}"`);
+          return;
         }
       } else {
         // AI says this is a new trip
@@ -107,7 +114,7 @@ export class EmailProcessorService {
       }
     } catch (dbError: any) {
       console.error(`[EmailProcessor] Failed to find/create trip for email ${emailId}:`, dbError.message);
-      await EmailRepository.markEmailAsParsed(emailId);
+      await EmailRepository.markEmailAsVerified(emailId);
       return;
     }
 
@@ -159,11 +166,32 @@ export class EmailProcessorService {
     // 7) Link the email to the trip and mark as parsed
     try {
       await EmailRepository.associateEmailWithTrip(emailId, tripId);
-      await EmailRepository.markEmailAsParsed(emailId);
+      await EmailRepository.markEmailAsVerified(emailId);
       console.log(`[EmailProcessor] Email ${emailId} processed successfully → trip ${tripId}`);
     } catch (updateError: any) {
       console.error(`[EmailProcessor] Failed to update email status:`, updateError.message);
     }
+  }
+
+  private static shouldRouteToReview(
+    extracted: ExtractedData,
+    existingTrips: any[]
+  ): { route: boolean; reasons: string[] } {
+    // No existing trips — always auto-create, no ambiguity
+    if (existingTrips.length === 0) return { route: false, reasons: [] };
+
+    const reasons: string[] = [];
+
+    if (!extracted.trip_id) {
+      reasons.push("Could not match email to an existing trip");
+    }
+
+    const missingTime = extracted.items.filter((i) => !i.start_timestamp);
+    if (missingTime.length > 0) {
+      reasons.push(`${missingTime.length} item(s) missing date/time information`);
+    }
+
+    return { route: reasons.length > 0, reasons };
   }
 
   /**

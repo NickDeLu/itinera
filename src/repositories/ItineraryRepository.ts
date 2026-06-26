@@ -66,15 +66,20 @@ export class ItineraryRepository {
     return data || null;
   }
 
-  static async getItineraryItemsByTripId(tripId: string): Promise<ItineraryItem[]> {
+  static async getItineraryItemsByTripId(tripId: string): Promise<any[]> {
     const { data, error } = await supabaseAdmin
       .from("itinerary_items")
-      .select("*")
+      .select("*, activity_types(slug, label)")
       .eq("trip_id", tripId)
       .order("start_timestamp", { ascending: true });
 
     if (error) throw new Error(`Failed to fetch itinerary items: ${error.message}`);
-    return data || [];
+    // Flatten the joined activity type into the item
+    return (data || []).map((item: any) => ({
+      ...item,
+      activity_type: item.activity_types?.slug || item.activity_type || null,
+      activity_type_label: item.activity_types?.label || null,
+    }));
   }
 
   static async updateItineraryItem(
