@@ -54,7 +54,8 @@ CREATE TABLE email_messages (
   subject text, -- email subject line
   body text, -- plain text body of the email (for AI processing)
   received_at timestamptz, -- timestamp from the inbound email
-  parsed boolean NOT NULL DEFAULT false, -- whether AI parsing completed successfully
+  parsed_status text, -- in_review | verified (null until AI processing runs)
+  parsed_data jsonb, -- AI-extracted JSON (always set after processing, empty object on failure)
   parsed_at timestamptz, -- when parsing finished
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -77,6 +78,8 @@ CREATE TABLE itinerary_items (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_email_messages_parsed_status ON email_messages(user_id, parsed_status);
 
 CREATE INDEX idx_itinerary_items_trip_id ON itinerary_items(trip_id);
 CREATE INDEX idx_itinerary_items_start_timestamp ON itinerary_items(start_timestamp);

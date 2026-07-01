@@ -9,11 +9,19 @@ export interface EmailMessage {
   subject?: string;
   body?: string;
   received_at?: string;
-  parsed: boolean;
+  parsed_status?: string | null; // 'in_review' | 'verified' | null (null until AI runs)
+  parsed_data?: Record<string, any> | null;
   parsed_at?: string;
   created_at: string;
   updated_at: string;
 }
+
+const EMPTY_PARSED_DATA = {
+  trip_id: null,
+  trip: {},
+  items: [],
+  review_reasons: ["AI parsing failed — please fill in the activity details manually"],
+};
 
 export class EmailRepository {
   static async saveEmailMessage(
@@ -35,7 +43,7 @@ export class EmailRepository {
         body,
         received_at: receivedAt,
         trip_id: tripId,
-        parsed: false,
+        // parsed_status is null until AI processing completes
       })
       .select()
       .single();
@@ -80,6 +88,29 @@ export class EmailRepository {
     return data || [];
   }
 
+  static async getEmailsInReviewByUserId(userId: string): Promise<EmailMessage[]> {
+    const { data, error } = await supabaseAdmin
+      .from("email_messages")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("parsed_status", "in_review")
+      .order("received_at", { ascending: false });
+
+    if (error) throw new Error(`Failed to fetch review queue: ${error.message}`);
+    return data || [];
+  }
+
+  static async getReviewQueueCountByUserId(userId: string): Promise<number> {
+    const { count, error } = await supabaseAdmin
+      .from("email_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("parsed_status", "in_review");
+
+    if (error) throw new Error(`Failed to count review queue: ${error.message}`);
+    return count || 0;
+  }
+
   static async updateEmailMessage(
     messageId: string,
     updates: Partial<EmailMessage>
@@ -96,10 +127,31 @@ export class EmailRepository {
     return data;
   }
 
-  static async markEmailAsParsed(messageId: string): Promise<EmailMessage> {
+  static async markEmailAsVerified(messageId: string): Promise<EmailMessage> {
     return this.updateEmailMessage(messageId, {
-      parsed: true,
+      parsed_status: "verified",
       parsed_at: new Date().toISOString(),
+    });
+  }
+
+  static async routeEmailToReview(
+    messageId: string,
+    parsedData: Record<string, any>,
+    reviewReasons: string[]
+  ): Promise<EmailMessage> {
+    return this.updateEmailMessage(messageId, {
+      parsed_status: "in_review",
+      parsed_data: { ...parsedData, review_reasons: reviewReasons },
+    });
+  }
+
+  static async routeEmailToReviewWithEmptyData(
+    messageId: string,
+    reviewReasons: string[]
+  ): Promise<EmailMessage> {
+    return this.updateEmailMessage(messageId, {
+      parsed_status: "in_review",
+      parsed_data: { ...EMPTY_PARSED_DATA, review_reasons: reviewReasons },
     });
   }
 
