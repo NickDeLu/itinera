@@ -1,15 +1,13 @@
 <script>
-  import { slide } from 'svelte/transition';
+  import Icon from './Icon.svelte';
 
   let { activeRoute = 'chat', onNavigate, reviewCount = 0 } = $props();
 
-  let menuOpen = $state(false);
-
   const routes = [
-    { id: 'chat', label: 'Chat', icon: '💬' },
-    { id: 'trips', label: 'Trips', icon: '📋' },
-    { id: 'review', label: 'Review', icon: '📬' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'chat', label: 'Chat', icon: 'chat' },
+    { id: 'trips', label: 'Trips', icon: 'trips' },
+    { id: 'review', label: 'Review', icon: 'review' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 </script>
 
@@ -22,7 +20,7 @@
       onclick={() => onNavigate(route.id)}
     >
       <span class="nav-icon-wrap">
-        <span class="nav-icon">{route.icon}</span>
+        <Icon name={route.icon} size={20} class="nav-icon" />
         {#if route.id === 'review' && reviewCount > 0}
           <span class="badge">{reviewCount > 99 ? '99+' : reviewCount}</span>
         {/if}
@@ -35,7 +33,7 @@
 <!-- Desktop Sidebar -->
 <aside class="sidebar">
   <div class="sidebar-header">
-    <span class="sidebar-logo">🧳</span>
+    <Icon name="logo" size={28} class="sidebar-logo" />
     <span class="sidebar-title">Itinera</span>
   </div>
   <nav class="sidebar-nav">
@@ -46,7 +44,7 @@
         onclick={() => onNavigate(route.id)}
       >
         <span class="sidebar-icon-wrap">
-          <span class="sidebar-icon">{route.icon}</span>
+          <Icon name={route.icon} size={18} class="sidebar-icon" />
           {#if route.id === 'review' && reviewCount > 0}
             <span class="badge">{reviewCount > 99 ? '99+' : reviewCount}</span>
           {/if}
@@ -105,11 +103,6 @@
     display: inline-flex;
   }
 
-  .nav-icon {
-    font-size: 20px;
-    line-height: 1;
-  }
-
   .nav-label {
     font-weight: 600;
   }
@@ -136,10 +129,6 @@
     gap: 10px;
     padding: 20px;
     border-bottom: 1px solid var(--border);
-  }
-
-  .sidebar-logo {
-    font-size: 28px;
   }
 
   .sidebar-title {
@@ -189,10 +178,6 @@
     display: inline-flex;
     width: 24px;
     text-align: center;
-  }
-
-  .sidebar-icon {
-    font-size: 18px;
   }
 
   .badge {

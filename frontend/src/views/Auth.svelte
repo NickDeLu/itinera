@@ -1,5 +1,6 @@
 <script>
   import { login, signup } from '../lib/api.js';
+  import Icon from '../lib/Icon.svelte';
 
   let { onLogin } = $props();
 
@@ -75,11 +76,9 @@
 
 <div class="auth-screen">
   <div class="auth-container">
-    <div class="auth-header">
-      <div class="logo">🧳</div>
-      <h1>Itinera</h1>
-      <p>Your AI travel planning assistant</p>
-    </div>
+  <div class="auth-header">
+    <Icon name="logo-with-text" size={180} class="logo" />
+  </div>
     <div class="auth-body">
       <div class="auth-tabs">
         <button class="auth-tab" class:active={tab === 'login'} onclick={() => switchTab('login')}>Sign In</button>
@@ -167,25 +166,12 @@
   .auth-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 32px 24px 24px;
+    padding: 40px 24px 32px;
     text-align: center;
   }
 
   .logo {
-    font-size: 40px;
-    margin-bottom: 8px;
-  }
-
-  .auth-header h1 {
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-  }
-
-  .auth-header p {
-    font-size: 14px;
-    opacity: 0.85;
-    margin-top: 4px;
+    margin-bottom: 0;
   }
 
   .auth-body {

@@ -66,7 +66,7 @@ export class ItineraryRepository {
     return data || null;
   }
 
-  static async getItineraryItemsByTripId(tripId: string): Promise<any[]> {
+  static async getItineraryItemsByTripId(tripId: string): Promise<ItineraryItem[]> {
     const { data, error } = await supabaseAdmin
       .from("itinerary_items")
       .select("*, activity_types(slug, label)")

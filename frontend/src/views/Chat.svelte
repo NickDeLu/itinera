@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { streamChat } from '../lib/api.js';
+  import Icon from '../lib/Icon.svelte';
 
   let { user } = $props();
 
@@ -11,14 +12,18 @@
   let conversationHistory = $state([]);
   let abortController = $state(null);
   let accumulatedText = $state('');
+  let toolDetailsState = $state({});
 
-  let messagesEl;
-  let inputEl;
+  let messagesEl = null;
+  let inputEl = null;
   let activeAssistantId = $state(null);
+  let hasReceivedText = $state(false);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
-      if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+      if (messagesEl) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
     });
   }
 
@@ -26,41 +31,128 @@
     switch (event) {
       case 'turn_start':
         accumulatedText = '';
+        hasReceivedText = false;
         const id = crypto.randomUUID();
         activeAssistantId = id;
-        messages = [...messages, { role: 'assistant', text: '', id, tools: [], finalized: false }];
+        messages = [...messages, { role: 'assistant', text: '', id, tools: [], toolsOpen: false, finalized: false }];
         break;
 
-      case 'text_chunk':
+      case 'text_chunk': {
         accumulatedText += data.text || '';
-        messages = messages.map(m =>
-          m.id === activeAssistantId ? { ...m, text: accumulatedText } : m
-        );
-        scrollToBottom();
-        break;
-
-      case 'turn_done':
-        if (data.text) {
-          accumulatedText = data.text;
+        
+        // Extract just the text value from the JSON stream
+        const textMatch = accumulatedText.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)/);
+        if (textMatch) {
+          hasReceivedText = true;
+          // Unescape the text (handles escaped quotes, backslashes, newlines)
+          let extractedText = textMatch[1]
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t');
+          // Remove trailing incomplete escape sequences
+          extractedText = extractedText.replace(/\\$/, '');
           messages = messages.map(m =>
-            m.id === activeAssistantId ? { ...m, text: accumulatedText, finalized: true } : m
+            m.id === activeAssistantId ? { ...m, text: extractedText } : m
           );
+          scrollToBottom();
+        }
+        
+        // Extract tools from the accumulated text (only if we haven't parsed them yet)
+        const toolsMatch = accumulatedText.match(/"tools"\s*:\s*\[/);
+        if (toolsMatch && activeAssistantId) {
+          // Show tool collapsible as soon as we detect the tools array
+          messages = messages.map(m => {
+            if (m.id === activeAssistantId && m.tools.length === 0) {
+              return { ...m, tools: [] };
+            }
+            return m;
+          });
+          
+          // Try to parse actual tools
+          try {
+            const toolsStr = '[' + accumulatedText.match(/"tools"\s*:\s*\[([\s\S]*?)\]/)?.[1] || ']';
+            const tools = JSON.parse(toolsStr);
+            if (tools.length > 0) {
+              messages = messages.map(m => {
+                if (m.id === activeAssistantId && m.tools.length === 0) {
+                  const newTools = tools.map((t) => ({
+                    tool: t.tool,
+                    status: 'running',
+                    args: t.args,
+                    result: null
+                  }));
+                  return { ...m, tools: newTools };
+                }
+                return m;
+              });
+            }
+          } catch (e) {
+            // Ignore parse errors for partial tool data
+          }
         }
         break;
+      }
+
+      case 'turn_done': {
+        // Parse the complete JSON to get final text and tools
+        try {
+          const parsed = JSON.parse(accumulatedText);
+          if (parsed.text) {
+            messages = messages.map(m =>
+              m.id === activeAssistantId ? { ...m, text: parsed.text, finalized: true } : m
+            );
+          }
+          // Add tools from the final response if they exist (even if empty array)
+          if (parsed.tools && Array.isArray(parsed.tools)) {
+            messages = messages.map(m => {
+              if (m.id === activeAssistantId) {
+                const newTools = parsed.tools.map((t) => ({
+                  tool: t.tool,
+                  status: 'running',
+                  args: t.args,
+                  result: null
+                }));
+                return { ...m, tools: newTools };
+              }
+              return m;
+            });
+          }
+        } catch (e) {
+          // If parsing fails, use the accumulated text as-is
+          if (accumulatedText.trim()) {
+            messages = messages.map(m =>
+              m.id === activeAssistantId ? { ...m, text: accumulatedText, finalized: true } : m
+            );
+          }
+        }
+        break;
+      }
 
       case 'tool_call':
-        messages = messages.map(m =>
-          m.id === activeAssistantId
-            ? { ...m, tools: [...m.tools, { tool: data.tool, status: 'running' }] }
-            : m
-        );
+        // Update existing tool with args if it exists, otherwise add it
+        messages = messages.map(m => {
+          if (m.id === activeAssistantId) {
+            const existingIndex = m.tools.findIndex(t => t.tool === data.tool);
+            if (existingIndex >= 0) {
+              // Update args for existing tool
+              const updatedTools = [...m.tools];
+              updatedTools[existingIndex] = { ...updatedTools[existingIndex], args: data.args };
+              return { ...m, tools: updatedTools };
+            } else {
+              // Add new tool
+              return { ...m, tools: [...m.tools, { tool: data.tool, status: 'running', args: data.args, result: null }] };
+            }
+          }
+          return m;
+        });
         break;
 
       case 'tool_result':
         messages = messages.map(m => ({
           ...m,
           tools: (m.tools || []).map(t =>
-            t.tool === data.tool ? { ...t, status: data.result?.error ? 'error' : 'done' } : t
+            t.tool === data.tool ? { ...t, status: data.result?.error ? 'error' : 'done', result: data.result } : t
           ),
         }));
         break;
@@ -110,17 +202,53 @@
     isStreaming = false;
     abortController = null;
   }
-
+  
   function stopStreaming() {
     if (abortController) {
       abortController.abort();
       abortController = null;
       isStreaming = false;
+      hasReceivedText = false;
       messages = messages.map(m =>
         m.id === activeAssistantId ? { ...m, finalized: true } : m
       );
       activeAssistantId = null;
     }
+  }
+
+  function formatMarkdown(text) {
+    if (!text) return '';
+    // Escape HTML first
+    let formatted = text
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>');
+    // Convert **bold** to <strong>
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Convert *italic* to <em>
+    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Convert newlines to <br> for immediate rendering during streaming
+    formatted = formatted.replace(/\n/g, '<br>');
+    return formatted;
+  }
+
+  function toggleTools(msgId) {
+    messages = messages.map(m =>
+      m.id === msgId ? { ...m, toolsOpen: !m.toolsOpen } : m
+    );
+  }
+
+  function toggleToolDetail(msgId, toolName, section) {
+    const key = `${msgId}-${toolName}-${section}`;
+    toolDetailsState = {
+      ...toolDetailsState,
+      [key]: !toolDetailsState[key]
+    };
+  }
+
+  function getToolDetailState(msgId, toolName, section) {
+    const key = `${msgId}-${toolName}-${section}`;
+    return toolDetailsState[key] || false;
   }
 
   function handleKeydown(e) {
@@ -142,7 +270,7 @@
   <!-- Header -->
   <header class="chat-header">
     <div class="header-left">
-      <span class="header-logo">🧳</span>
+      <Icon name="logo" size={24} class="header-logo" />
       <div>
         <h1>Itinera</h1>
         <span class="header-subtitle">AI Travel Planner</span>
@@ -165,42 +293,77 @@
   <div class="messages" bind:this={messagesEl}>
     {#if messages.length === 0}
       <div class="empty-state">
-        <div class="empty-icon">🧳</div>
+        <Icon name="globe" size={48} class="empty-icon" />
         <h2>Plan your next adventure</h2>
         <p>Ask Itinera to help plan a trip, create an itinerary, or explore destinations.</p>
       </div>
     {/if}
 
     {#each messages as msg}
-      <div class="message {msg.role}">
-        <div class="bubble">
-          {#if msg.role === 'assistant'}
-            <div class="label">Itinera</div>
-          {/if}
-          <div class="text">{msg.text}</div>
-
-          {#if msg.tools?.length > 0}
-            <div class="tool-calls">
-              {#each msg.tools as tc}
-                <div class="tool-call">
-                  <span class="tool-icon">🔧</span>
-                  <span class="tool-name">{tc.tool}</span>
-                  <span class="tool-status {tc.status}">
-                    {#if tc.status === 'running'}running...
-                    {:else if tc.status === 'done'}✓ done
-                    {:else}error
-                    {/if}
+      {#if msg.role === 'user'}
+        <div class="message user">
+          <div class="bubble">
+            <div class="text">{msg.text}</div>
+          </div>
+        </div>
+      {:else if msg.role === 'assistant'}
+        {#if msg.text || msg.tools?.length > 0}
+          <div class="message assistant">
+            {#if msg.text}
+              <div class="bubble">
+                <div class="label">Itinera</div>
+                <div class="text">{@html formatMarkdown(msg.text)}</div>
+              </div>
+            {/if}
+            
+            {#if msg.tools?.length > 0}
+              <div class="tool-section">
+                <div class="tool-header" onclick={() => toggleTools(msg.id)}>
+                  <span class="tool-arrow" class:open={msg.toolsOpen}>▶</span>
+                  <span>🔧 {msg.tools[msg.tools.length - 1]?.tool || 'Tools'}</span>
+                  <span class="tool-summary">
+                    {#if msg.tools.some(t => t.status === 'done')}✅{/if}
+                    {#if msg.tools.some(t => t.status === 'error')}❌{/if}
+                    {#if msg.tools.some(t => t.status === 'running')}⏳{/if}
                   </span>
                 </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </div>
+                <div class="tool-body" class:open={msg.toolsOpen}>
+                  {#each msg.tools as tc}
+                    <div class="tool-entry">
+                      <div class="tool-status-line {tc.status}">
+                        {#if tc.status === 'running'}⏳ {tc.tool}
+                        {:else if tc.status === 'done'}✅ {tc.tool}
+                        {:else}❌ {tc.tool}
+                        {/if}
+                      </div>
+                      
+                      <div class="tool-details">
+                        <div class="tool-detail-header" onclick={() => toggleToolDetail(msg.id, tc.tool, 'input')}>
+                          <span class="tool-detail-arrow" class:open={getToolDetailState(msg.id, tc.tool, 'input')}>▼</span>
+                          Input
+                        </div>
+                        <pre class="tool-io" class:open={getToolDetailState(msg.id, tc.tool, 'input')}>{JSON.stringify(tc.args || {}, null, 2)}</pre>
+                        
+                        {#if tc.status !== 'running'}
+                          <div class="tool-detail-header" onclick={() => toggleToolDetail(msg.id, tc.tool, 'output')}>
+                            <span class="tool-detail-arrow" class:open={getToolDetailState(msg.id, tc.tool, 'output')}>▼</span>
+                            Output
+                          </div>
+                          <pre class="tool-io" class:open={getToolDetailState(msg.id, tc.tool, 'output')}>{JSON.stringify(tc.result || {}, null, 2)}</pre>
+                        {/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      {/if}
     {/each}
 
-    <!-- Typing Indicator -->
-    {#if isStreaming && !activeAssistantId}
+    <!-- Typing Indicator - shows while waiting for first text chunk -->
+    {#if isStreaming && !hasReceivedText}
       <div class="typing">
         <div class="typing-dots">
           <span></span><span></span><span></span>
@@ -224,9 +387,13 @@
       ></textarea>
     </div>
     {#if isStreaming}
-      <button class="btn btn-stop" onclick={stopStreaming}>■</button>
+      <button class="btn btn-stop" onclick={stopStreaming}>
+        <Icon name="stop" size={16} />
+      </button>
     {:else}
-      <button class="btn btn-send" onclick={sendMessage} disabled={!input.trim()}>➤</button>
+      <button class="btn btn-send" onclick={sendMessage} disabled={!input.trim()}>
+        <Icon name="send" size={16} />
+      </button>
     {/if}
   </div>
 </div>
@@ -258,7 +425,7 @@
   }
 
   .header-logo {
-    font-size: 24px;
+    flex-shrink: 0;
   }
 
   .chat-header h1 {
@@ -329,8 +496,9 @@
   }
 
   .empty-icon {
-    font-size: 48px;
     margin-bottom: 16px;
+    color: var(--primary);
+    opacity: 0.5;
   }
 
   .empty-state h2 {
@@ -401,37 +569,122 @@
     margin-bottom: 4px;
   }
 
-  .tool-calls {
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  .tool-section {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-light);
   }
 
-  .tool-call {
+  .tool-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
-    background: rgba(102, 126, 234, 0.08);
-    border-radius: 6px;
-    font-size: 12px;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--text-secondary);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    transition: all 0.2s;
   }
 
-  .tool-name {
+  .tool-summary {
+    margin-left: auto;
+    font-size: 12px;
+  }
+
+  .tool-header:hover {
+    background: var(--bg-light);
+    color: var(--text);
+  }
+
+  .tool-arrow {
+    transition: transform 0.2s;
+    font-size: 10px;
+    display: inline-block;
+  }
+
+  .tool-arrow.open {
+    transform: rotate(90deg);
+  }
+
+  .tool-body {
+    display: none;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+
+  .tool-body.open {
+    display: block;
+  }
+
+  .tool-entry {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+
+  .tool-entry:last-child {
+    border-bottom: none;
+  }
+
+  .tool-status-line {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 0;
+    color: var(--text);
+  }
+
+  .tool-status-line.done { color: #16a34a; }
+  .tool-status-line.running { color: var(--primary); }
+  .tool-status-line.error { color: #ef4444; }
+
+  .tool-details {
+    margin-top: 8px;
+  }
+
+  .tool-detail-header {
+    font-size: 11px;
     font-weight: 600;
     color: var(--primary);
+    padding: 4px 0;
+    cursor: pointer;
+    user-select: none;
   }
 
-  .tool-status {
-    margin-left: auto;
+  .tool-detail-header:hover {
+    color: #764ba2;
+  }
+
+  .tool-detail-arrow {
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 10px;
+  }
+
+  .tool-detail-arrow.open {
+    transform: rotate(90deg);
+  }
+
+  .tool-io {
+    background: var(--bg-light);
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
     font-size: 11px;
+    margin: 4px 0 0 0;
+    display: none;
+    font-family: "Monaco", "Menlo", monospace;
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
-  .tool-status.done { color: var(--success); }
-  .tool-status.running { color: var(--primary); }
-  .tool-status.error { color: var(--error); }
+  .tool-io.open {
+    display: block;
+  }
 
   .typing {
     align-self: flex-start;
