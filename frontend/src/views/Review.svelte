@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { fetchReviewQueue, fetchTrips, confirmReviewEmail } from '../lib/api.js';
+  import Icon from '../lib/Icon.svelte';
 
   let { user, onConfirm } = $props();
 
@@ -137,7 +138,9 @@
           <h2 class="modal-title">Review Email</h2>
           <p class="modal-subtitle">{selectedEmail.subject || '(no subject)'}</p>
         </div>
-        <button class="close-btn" onclick={closeModal}>✕</button>
+        <button class="close-btn" onclick={closeModal}>
+          <Icon name="close" size={18} />
+        </button>
       </div>
 
       <div class="modal-body">
@@ -230,7 +233,10 @@
   <!-- Review Queue List -->
   <div class="review-page">
     <div class="page-header">
-      <h1 class="page-title">Review Queue</h1>
+      <div class="page-header-row">
+        <Icon name="review" size={22} class="page-header-icon" />
+        <h1 class="page-title">Review Queue</h1>
+      </div>
       <p class="page-subtitle">Emails that need your attention before activities are created.</p>
     </div>
 
@@ -240,7 +246,7 @@
       <div class="state-msg error">{error}</div>
     {:else if emails.length === 0}
       <div class="empty-state">
-        <span class="empty-icon">📬</span>
+        <Icon name="review" size={48} class="empty-icon" />
         <p>No emails need review.</p>
         <p class="empty-hint">Keep forwarding your booking confirmations!</p>
       </div>
@@ -279,6 +285,12 @@
     margin-bottom: 24px;
   }
 
+  .page-header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .page-title {
     font-size: 24px;
     font-weight: 700;
@@ -290,6 +302,7 @@
     font-size: 14px;
     color: var(--text-secondary);
     margin: 0;
+    margin-left: 32px;
   }
 
   .state-msg {
@@ -306,12 +319,6 @@
     text-align: center;
     padding: 64px 0;
     color: var(--text-secondary);
-  }
-
-  .empty-icon {
-    font-size: 48px;
-    display: block;
-    margin-bottom: 12px;
   }
 
   .empty-state p {
@@ -449,10 +456,9 @@
   .close-btn {
     background: none;
     border: none;
-    font-size: 18px;
-    color: var(--text-secondary);
     cursor: pointer;
     padding: 4px;
+    color: var(--text-secondary);
     line-height: 1;
   }
 

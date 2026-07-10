@@ -129,59 +129,54 @@ export function streamChat(message, history, callbacks) {
 
   const controller = new AbortController();
 
-  fetch(`${BASE}/chat/stream`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ message, history }),
-    signal: controller.signal,
-  }).then(async (res) => {
-    if (!res.ok) {
-      if (res.status === 401) {
-        // Try refresh
-        const refreshRes = await fetch(`${BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          setTokens(data.session.access_token, data.session.refresh_token);
-          // Retry
-          const retryRes = await fetch(`${BASE}/chat/stream`, {
+  const doFetch = () =>
+    fetch(`${BASE}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ message, history }),
+      signal: controller.signal,
+    });
+
+  doFetch()
+    .then(async (res) => {
+      if (!res.ok) {
+        if (res.status === 401 && refreshToken) {
+          // Reuse the request helper's refresh logic
+          const refreshRes = await request('/auth/refresh', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ message, history }),
-            signal: controller.signal,
+            body: JSON.stringify({ refresh_token: refreshToken }),
           });
-          if (!retryRes.ok) {
-            const errData = await retryRes.json().catch(() => ({}));
-            callbacks.onError?.(errData.error || 'Chat failed');
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            setTokens(data.session.access_token, data.session.refresh_token);
+            const retryRes = await doFetch();
+            if (!retryRes.ok) {
+              const errData = await retryRes.json().catch(() => ({}));
+              callbacks.onError?.(errData.error || 'Chat failed');
+              return;
+            }
+            await readStream(retryRes, callbacks);
             return;
           }
-          await readStream(retryRes, callbacks);
+          clearTokens();
+          window.dispatchEvent(new CustomEvent('auth:expired'));
+          callbacks.onError?.('Session expired');
           return;
         }
-        clearTokens();
-        window.dispatchEvent(new CustomEvent('auth:expired'));
-        callbacks.onError?.('Session expired');
+        const errData = await res.json().catch(() => ({}));
+        callbacks.onError?.(errData.error || 'Chat failed');
         return;
       }
-      const errData = await res.json().catch(() => ({}));
-      callbacks.onError?.(errData.error || 'Chat failed');
-      return;
-    }
-    await readStream(res, callbacks);
-  }).catch((err) => {
-    if (err.name !== 'AbortError') {
-      callbacks.onError?.(err.message);
-    }
-  });
+      await readStream(res, callbacks);
+    })
+    .catch((err) => {
+      if (err.name !== 'AbortError') {
+        callbacks.onError?.(err.message);
+      }
+    });
 
   return controller;
 }
@@ -192,12 +187,14 @@ async function readStream(response, callbacks) {
   let buffer = '';
   let currentEvent = '';
   let currentData = '';
+  let done = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
+  while (!done) {
+    const result = await reader.read();
+    done = result.done;
     if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+    buffer += decoder.decode(result.value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
 

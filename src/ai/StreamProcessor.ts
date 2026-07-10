@@ -6,7 +6,7 @@ export class StreamProcessor {
    */
   static async process(
     stream: any,
-    timeoutMs: number = 30000
+    timeoutMs: number = 120000
   ): Promise<{ tools: any[]; text: string }> {
     ToolCallParser.reset();
     const result = await this.processRawStream(stream, timeoutMs, () => {}, () => false);
@@ -21,7 +21,7 @@ export class StreamProcessor {
     stream: any,
     onChunk: (text: string) => void,
     isAborted: () => boolean,
-    timeoutMs: number = 30000
+    timeoutMs: number = 120000
   ): Promise<{ tools: any[]; text: string }> {
     ToolCallParser.reset();
     return this.processRawStream(stream, timeoutMs, onChunk, isAborted);

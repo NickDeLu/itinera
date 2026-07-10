@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { fetchTrips, deleteTrip } from '../lib/api.js';
+  import Icon from '../lib/Icon.svelte';
   import Timeline from './Timeline.svelte';
 
   let { user } = $props();
@@ -50,7 +51,10 @@
 {:else}
   <div class="view">
     <header class="view-header">
-      <h1>📋 My Trips</h1>
+      <div class="view-header-row">
+        <Icon name="trips" size={22} class="view-header-icon" />
+        <h1>My Trips</h1>
+      </div>
       <p class="view-subtitle">Tap a trip to view its itinerary timeline</p>
     </header>
 
@@ -67,7 +71,7 @@
         </div>
       {:else if trips.length === 0}
         <div class="empty-state">
-          <div class="empty-icon">🗺️</div>
+          <Icon name="globe" size={48} class="empty-icon" />
           <h2>No trips yet</h2>
           <p>Start planning your next adventure by chatting with Itinera! Ask it to create a trip itinerary and it will appear here.</p>
           <div class="tips">
@@ -86,7 +90,9 @@
               <div class="trip-header">
                 <h3>{trip.name || 'Untitled Trip'}</h3>
                 {#if trip.destination}
-                  <span class="trip-dest">📍 {trip.destination}</span>
+                  <span class="trip-dest">
+                    <Icon name="pin" size={12} class="pin-icon" /> {trip.destination}
+                  </span>
                 {/if}
                 {#if trip.start_date || trip.end_date}
                   <span class="trip-dates">
@@ -106,7 +112,9 @@
                 <span class="trip-created">
                   Created {new Date(trip.created_at).toLocaleDateString()}
                 </span>
-                <button class="btn-delete" onclick={() => handleDelete(trip.id)}>Delete</button>
+                <button class="btn-delete" onclick={() => handleDelete(trip.id)}>
+                  <Icon name="trash" size={14} />
+                </button>
               </div>
               </div>
             {/each}
@@ -131,6 +139,12 @@
     flex-shrink: 0;
   }
 
+  .view-header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .view-header h1 {
     font-size: 22px;
     font-weight: 700;
@@ -140,6 +154,7 @@
     font-size: 13px;
     color: var(--text-secondary);
     margin-top: 4px;
+    margin-left: 32px;
   }
 
   .view-body {
@@ -189,11 +204,6 @@
     margin: 0 auto;
   }
 
-  .empty-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-  }
-
   .empty-state h2 {
     font-size: 20px;
     font-weight: 600;
@@ -234,7 +244,7 @@
   }
 
   .tips li::before {
-    content: '💡 ';
+    content: '→ ';
   }
 
   .trip-grid {
@@ -278,7 +288,9 @@
   }
 
   .trip-dest {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 13px;
     color: var(--primary);
     margin-bottom: 2px;
@@ -331,15 +343,18 @@
   }
 
   .btn-delete {
-    padding: 6px 14px;
+    padding: 6px;
     border: 1px solid #fecaca;
     background: #fef2f2;
     color: #ef4444;
     border-radius: 6px;
     font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
     transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
   }
 
   .btn-delete:active {
