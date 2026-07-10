@@ -8,6 +8,7 @@ import { FetchItineraryItemsCommand } from "./FetchItineraryItemsCommand";
 import { EditTripCommand } from "./EditTripCommand";
 import { DeleteItineraryItemCommand } from "./DeleteItineraryItemCommand";
 import { DeleteTripCommand } from "./DeleteTripCommand";
+import { SearchPlacesCommand } from "./SearchPlacesCommand";
 
 export class CommandFactory {
   static create(toolCall: any): Command {
@@ -80,6 +81,16 @@ export class CommandFactory {
 
       case "delete_trip":
         return new DeleteTripCommand(toolCall.args.trip_id);
+
+      case "search_places":
+        return new SearchPlacesCommand(
+          toolCall.args.location,
+          toolCall.args.categories,
+          toolCall.args.radius,
+          toolCall.args.limit,
+          toolCall.args.query,
+          toolCall.args.intention
+        );
 
       default:
         throw new Error(`Unknown tool: ${toolCall.tool}`);
