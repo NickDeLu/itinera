@@ -10,8 +10,15 @@ const router = Router();
  * POST /auth/signup
  * Register a new user with email and password
  * Returns user info (user must log in to get tokens)
+ * 
+ * NOTE: Set BLOCK_SIGNUP=true in .env to disable public registration
  */
 router.post("/signup", async (req: AuthenticatedRequest, res: Response) => {
+  // Check if signups are blocked via env config
+  if (process.env.BLOCK_SIGNUP === "true") {
+    return res.status(403).json({ error: "New user registration is currently disabled" });
+  }
+
   const { email, password, full_name } = req.body;
 
   if (!email || !password) {
