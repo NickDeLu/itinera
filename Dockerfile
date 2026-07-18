@@ -1,7 +1,7 @@
 # =============================================
 # Stage 1: Build the Svelte frontend
 # =============================================
-FROM --platform=linux/amd64 node:20-alpine AS frontend-builder
+FROM --platform=linux/amd64 node:22-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -14,7 +14,7 @@ RUN npm run build
 # =============================================
 # Stage 2: Build the TypeScript backend
 # =============================================
-FROM --platform=linux/amd64 node:20-alpine AS backend-builder
+FROM --platform=linux/amd64 node:22-alpine AS backend-builder
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ RUN npm run build
 # =============================================
 # Stage 3: Production runtime image
 # =============================================
-FROM --platform=linux/amd64 node:20-alpine AS runtime
+FROM --platform=linux/amd64 node:22-alpine AS runtime
 
 WORKDIR /app
 
