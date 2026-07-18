@@ -402,8 +402,9 @@
   .chat-layout {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
+    flex: 1;
+    min-height: 0;
+    padding-bottom: 60px; /* space for mobile bottom nav */
   }
 
   .chat-header {
