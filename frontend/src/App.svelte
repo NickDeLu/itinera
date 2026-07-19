@@ -126,12 +126,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    position: relative; /* contain fixed children */
+    padding-bottom: 60px; /* space for mobile bottom nav */
   }
 
   @media (min-width: 768px) {
     .main-content {
-      position: static;
+      padding-bottom: 0;
     }
   }
 </style>

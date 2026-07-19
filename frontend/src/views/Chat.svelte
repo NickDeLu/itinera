@@ -404,13 +404,6 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    padding-bottom: calc(60px + env(safe-area-inset-bottom)); /* space for mobile bottom nav + safe area */
-  }
-
-  @media (min-width: 768px) {
-    .chat-layout {
-      padding-bottom: 0;
-    }
   }
 
   .chat-header {
