@@ -2,9 +2,9 @@
   import { login, signup } from '../lib/api.js';
   import Icon from '../lib/Icon.svelte';
 
-  let { onLogin } = $props();
+  let { onLogin, defaultTab = 'login' } = $props();
 
-  let tab = $state('login');
+  let tab = $state(defaultTab);
   let loading = $state(false);
   let error = $state('');
 

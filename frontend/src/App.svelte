@@ -7,12 +7,15 @@
   import Settings from './views/Settings.svelte';
   import Review from './views/Review.svelte';
   import NavBar from './lib/NavBar.svelte';
+  import Onboarding from './views/Onboarding.svelte';
 
   let authenticated = $state(!!getTokens().accessToken);
   let user = $state(null);
   let route = $state('chat');
   let loading = $state(true);
   let reviewCount = $state(0);
+  let showOnboarding = $state(false);
+  let authDefaultTab = $state('login');
 
   async function refreshReviewCount() {
     try {
@@ -33,6 +36,9 @@
       }
     }
     loading = false;
+
+    // Check for onboarding query param
+    checkOnboarding();
 
     // Listen for session expiry from api.js
     window.addEventListener('auth:expired', () => {
@@ -67,14 +73,42 @@
     refreshReviewCount();
     route = 'trips';
   }
+
+  function handleOnboardingComplete() {
+    showOnboarding = false;
+    // Remove query param from URL
+    if (window.history && window.history.replaceState) {
+      const url = new URL(window.location);
+      url.searchParams.delete('onboarding');
+      window.history.replaceState({}, '', url);
+    }
+    // Set auth to signup tab since user just completed onboarding
+    authDefaultTab = 'signup';
+  }
+
+  function checkOnboarding() {
+    // Check if user has completed onboarding before
+    const onboardingComplete = localStorage.getItem('itinera_onboarding_complete');
+    
+    // Check for query param
+    const urlParams = new URLSearchParams(window.location.search);
+    const showOnboardingParam = urlParams.get('onboarding') === 'true';
+    
+    // Show onboarding if query param is present, OR if it's the user's first visit
+    if (showOnboardingParam || !onboardingComplete) {
+      showOnboarding = true;
+    }
+  }
 </script>
 
 {#if loading}
   <div class="loading-screen">
     <div class="loading-spinner"></div>
   </div>
+{:else if showOnboarding}
+  <Onboarding onComplete={handleOnboardingComplete} />
 {:else if !authenticated}
-  <Auth onLogin={handleLogin} />
+  <Auth onLogin={handleLogin} defaultTab={authDefaultTab} />
 {:else}
   <div class="app-layout">
     <NavBar activeRoute={route} onNavigate={handleNavigate} {reviewCount} />
